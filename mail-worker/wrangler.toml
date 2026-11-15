@@ -3,6 +3,11 @@ main = "src/index.js"
 compatibility_date = "2025-06-04"
 keep_vars = true
 
+# Self-hosted installs may bind the database and mail storage in the dashboard.
+# Carry them forward on a code-only update; never provision replacements.
+[unsafe.metadata]
+keep_bindings = ["plain_text", "json", "secret_text", "d1", "kv_namespace", "r2_bucket", "send_email"]
+
 [observability]
 enabled = true
 

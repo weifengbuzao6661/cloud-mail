@@ -24,6 +24,7 @@ import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
 import webhookService from './webhook-service';
+import { aliasNotice, internalId, wantsAlias } from './business-notices';
 import forwardMime from '../utils/forward-mime';
 import verifyUtils from '../utils/verify-utils';
 
@@ -417,7 +418,7 @@ const emailService = {
 		ccEmail.forEach(address => takenAddress.add(address.toLowerCase()));
 		bccEmail = bccEmail.filter(address => !takenAddress.has(address.toLowerCase()));
 
-		const { resendTokens, r2Domain, send, domainList } = await settingService.query(c);
+		const { resendTokens, r2Domain, send, domainList, ruleEmail, ruleType, webhookUrl } = await settingService.query(c);
 
 		let { imageDataList, html } = await attService.toImageUrlHtml(c, content);
 
@@ -551,6 +552,7 @@ const emailService = {
 		// sendParams 用于渠道请求，saveParams 保留保存记录所需的账号、权限和附件数据。
 		const context = {
 			separate, allInternal, useCloudflareEmail, resendToken, sendParams,
+			businessRules:ruleType === settingConst.ruleType.RULE ? (ruleEmail || '').split(',') : [], businessHook:webhookUrl,
 			saveParams: {
 				accountId, userId, name, subject, text, html,
 				sendEmail: accountRow.email,
@@ -601,12 +603,13 @@ const emailService = {
 	},
 
 	// 站内发送：普通发送共用一条发件记录，分开发送则每人一条，再写入站内收件箱。
-	async *sendInternal(c, { separate, sendParams, saveParams }) {
+	async *sendInternal(c, { separate, sendParams, saveParams, businessRules, businessHook }) {
 		const recipientGroups = separate
 			? sendParams.receiveEmail.map(address => [address])
 			: [sendParams.receiveEmail];
 		for (const receiveEmail of recipientGroups) {
-			const emailResult = await this.saveSentEmail(c, { ...saveParams, receiveEmail });
+			const sentMessageId = internalId(c.env.business_mail, saveParams.sendEmail, [...receiveEmail, ...sendParams.ccEmail, ...sendParams.bccEmail],businessRules,businessHook);
+			const emailResult = await this.saveSentEmail(c, { ...saveParams, receiveEmail, sentMessageId });
 			const inboxAddresses = [...receiveEmail, ...sendParams.ccEmail, ...sendParams.bccEmail];
 			const emailRowList = await this.HandleOnSiteEmail(c, inboxAddresses, emailResult, emailResult.attList);
 			await this.forwardOnSiteEmail(c, emailRowList, { sendParams: { ...sendParams, receiveEmail } });
@@ -691,6 +694,7 @@ const emailService = {
 			status: useCloudflareEmail ? emailConst.status.DELIVERED : emailConst.status.SENT,
 			type: emailConst.type.SEND,
 			resendEmailId: providerId,
+			...(params.sentMessageId ? {messageId: params.sentMessageId} : {}),
 			recipient: JSON.stringify(receiveEmail.map(address => ({ address, name: '' }))),
 			cc: JSON.stringify(ccEmail.map(address => ({ address, name: '' }))),
 			bcc: JSON.stringify(bccEmail.map(address => ({ address, name: '' })))
@@ -1083,6 +1087,14 @@ const emailService = {
 
 		if (ruleType === settingConst.ruleType.RULE) {
 			const emails = ruleEmail.split(',');
+			if (webhookStatus === settingConst.webhookStatus.OPEN && webhookUrl && webhookSecret) {
+				for (const row of emailRowList) {
+					if (!wantsAlias(c.env.business_mail, row, emails, webhookUrl, webhookSecret)) continue;
+					const owner = await accountService.selectById(c, row.accountId);
+					const notice = aliasNotice(c.env.business_mail, row, owner?.email, emails, webhookUrl, webhookSecret);
+					if (notice) await webhookService.sendEmail(c, notice, webhookUrl, webhookRetry, webhookSecret);
+				}
+			}
 			emailRowList = emailRowList.filter(emailRow => emails.includes(emailRow.toEmail));
 		}
 

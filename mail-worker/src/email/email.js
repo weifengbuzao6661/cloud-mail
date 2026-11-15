@@ -12,6 +12,7 @@ import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 import aiService from '../service/ai-service';
 import webhookService from '../service/webhook-service';
+import { aliasNotice } from '../service/business-notices';
 
 export async function email(message, env, ctx) {
 
@@ -166,6 +167,10 @@ export async function email(message, env, ctx) {
 			const emails = ruleEmail.split(',');
 
 			if (!emails.includes(message.to)) {
+				const notice = aliasNotice(env.business_mail, emailRow, account?.email, emails, webhookUrl, webhookSecret);
+				if (notice && webhookStatus === settingConst.webhookStatus.OPEN) {
+					await webhookService.sendEmail({ env }, notice, webhookUrl, webhookRetry, webhookSecret);
+				}
 				return;
 			}
 
