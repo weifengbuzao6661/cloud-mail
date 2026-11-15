@@ -1,5 +1,8 @@
 // Optional per-mailbox integration. Unconfigured Workers keep the original behavior.
 function mailbox(config,rules,target) {
+  if (typeof config === 'string') {
+    try { config = JSON.parse(config); } catch { return ''; }
+  }
   const box=config?.mailbox?.toLowerCase();
   return box && config.webhook===target && target?.startsWith('https://') && rules.length===1 &&
     rules[0].trim().toLowerCase()===box ? box : '';
