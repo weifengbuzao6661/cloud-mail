@@ -10,7 +10,7 @@ app.get('/email/list', async (c) => {
 	const query = c.req.query();
 	const userId = userContext.getUserId(c);
 	if (query.attachmentId !== undefined) {
-		return mailboxAttachment(c.env.db, key => r2Service.toObjResp(c, key), userId, query);
+		return mailboxAttachment(c.env.db, key => r2Service.toObjResp(c, key, { storageHeaders: false }), userId, query);
 	}
 	const data = await emailService.list(c, query, userId);
 	return c.json(result.ok(data));

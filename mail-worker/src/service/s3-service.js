@@ -75,7 +75,7 @@ const s3Service = {
 		);
 	},
 
-	async getObj(c, key) {
+	async getObj(c, key, { storageHeaders = true } = {}) {
 		const client = await this.client(c);
 		const { bucket } = await settingService.query(c);
 		const result = await client.send(new GetObjectCommand({
@@ -83,6 +83,7 @@ const s3Service = {
 			Key: key
 		}));
 
+		if (!storageHeaders) return new Response(result.Body);
 		return new Response(result.Body, {
 			headers: {
 				'Content-Type': result.ContentType || 'application/octet-stream',

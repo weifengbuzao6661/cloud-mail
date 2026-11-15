@@ -60,12 +60,12 @@ const r2Service = {
 	 * Always returns a Response (or null if missing) so HTTP handlers
 	 * can serve KV / R2 / S3 the same way.
 	 */
-	async toObjResp(c, key) {
+	async toObjResp(c, key, { storageHeaders = true } = {}) {
 		try {
 			const storageType = await this.storageType(c);
 
 			if (storageType === 'KV') {
-				return await kvObjService.getObj(c, key);
+				return await kvObjService.getObj(c, key, { storageHeaders });
 			}
 
 			if (storageType === 'R2') {
@@ -73,6 +73,7 @@ const r2Service = {
 				if (!obj) {
 					return null;
 				}
+				if (!storageHeaders) return new Response(obj.body);
 				return new Response(obj.body, {
 					headers: {
 						'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream',
@@ -83,7 +84,7 @@ const r2Service = {
 			}
 
 			if (storageType === 'S3') {
-				return await s3Service.getObj(c, key);
+				return await s3Service.getObj(c, key, { storageHeaders });
 			}
 
 			return null;

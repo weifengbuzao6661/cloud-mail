@@ -25,3 +25,15 @@ test('only the owning mailbox and live message may read their attachment',async 
   db.exec('UPDATE account SET is_del=1 WHERE account_id=1');
   assert.equal((await mailboxAttachment(sql,get,7,query)).status,404);assert.equal(reads,1);db.close();
 });
+
+
+test('Unicode filename remains mail metadata, not a raw HTTP header', async () => {
+  const { default: kv } = await import('../src/service/kv-obj-service.js');
+  const value = Uint8Array.of(7).buffer;
+  const c = {env: {kv: {getWithMetadata: async () => ({value, metadata: {
+    contentDisposition: 'attachment;filename=報告.txt'
+  }})}}};
+  const r = await kv.getObj(c, 'attachments/sample.txt', {storageHeaders:false});
+  assert.equal(r.headers.get('Content-Disposition'), null);
+  assert.deepEqual(new Uint8Array(await r.arrayBuffer()), Uint8Array.of(7));
+});

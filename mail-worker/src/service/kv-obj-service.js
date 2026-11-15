@@ -17,12 +17,13 @@ const kvObjService = {
 		await Promise.all(keys.map( key => c.env.kv.delete(key)));
 	},
 
-	async getObj(c, key) {
+	async getObj(c, key, { storageHeaders = true } = {}) {
 		const obj = await c.env.kv.getWithMetadata(key, { type: "arrayBuffer"});
 		if (!obj.value) {
 			return null;
 		}
 
+		if (!storageHeaders) return new Response(obj.value);
 		return new Response(obj.value, {
 			headers: {
 				'Content-Type': obj.metadata?.contentType || 'application/octet-stream',
