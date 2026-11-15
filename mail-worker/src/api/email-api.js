@@ -3,9 +3,16 @@ import emailService from '../service/email-service';
 import result from '../model/result';
 import userContext from '../security/user-context';
 import attService from '../service/att-service';
+import r2Service from '../service/r2-service';
+import { mailboxAttachment } from '../service/mailbox-attachment.mjs';
 
 app.get('/email/list', async (c) => {
-	const data = await emailService.list(c, c.req.query(), userContext.getUserId(c));
+	const query = c.req.query();
+	const userId = userContext.getUserId(c);
+	if (query.attachmentId !== undefined) {
+		return mailboxAttachment(c.env.db, key => r2Service.toObjResp(c, key), userId, query);
+	}
+	const data = await emailService.list(c, query, userId);
 	return c.json(result.ok(data));
 });
 
